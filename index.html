@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Сапер (Minesweeper)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-light: #f3f4f6;
+            --bg-dark: #111827;
+            --text-light: #1f2937;
+            --text-dark: #f9fafb;
+            --primary-light: #3b82f6;
+            --primary-dark: #60a5fa;
+            --secondary-light: #e5e7eb;
+            --secondary-dark: #374151;
+            --cell-light: #d1d5db;
+            --cell-dark: #4b5563;
+            --cell-revealed-light: #e5e7eb;
+            --cell-revealed-dark: #1f2937;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+            --shadow-dark: rgba(0, 0, 0, 0.5);
+            --modal-bg-light: rgba(255, 255, 255, 0.7);
+            --modal-bg-dark: rgba(17, 24, 39, 0.7);
+        }
+
+        .dark {
+            --bg-main: var(--bg-dark);
+            --text-main: var(--text-dark);
+            --primary: var(--primary-dark);
+            --secondary: var(--secondary-dark);
+            --cell-bg: var(--cell-dark);
+            --cell-revealed-bg: var(--cell-revealed-dark);
+            --shadow: var(--shadow-dark);
+            --modal-bg: var(--modal-bg-dark);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main, var(--bg-light));
+            color: var(--text-main, var(--text-light));
+            transition: background-color 0.3s ease, color 0.3s ease;
+            overscroll-behavior: none;
+        }
+
+        .app-container {
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            overflow: hidden;
+        }
+
+        .main-menu, .game-screen {
+            max-width: 480px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .btn {
+            background-color: var(--secondary, var(--secondary-light));
+            color: var(--text-main, var(--text-light));
+            border-radius: 0.75rem;
+            padding: 1rem;
+            font-weight: 600;
+            font-size: 1.125rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px var(--shadow, var(--shadow-light));
+            border: 2px solid transparent;
+        }
+        .btn:hover, .btn-icon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px var(--shadow, var(--shadow-light));
+        }
+        .btn-primary {
+            background-color: var(--primary, var(--primary-light));
+            color: white;
+        }
+        .btn-icon {
+             background-color: var(--secondary, var(--secondary-light));
+             border-radius: 50%;
+             width: 60px;
+             height: 60px;
+             display: flex;
+             justify-content: center;
+             align-items: center;
+             transition: all 0.2s ease;
+             box-shadow: 0 4px 6px -1px var(--shadow, var(--shadow-light));
+        }
+        .btn-icon svg {
+            width: 28px;
+            height: 28px;
+            stroke: var(--text-main, var(--text-light));
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: var(--modal-bg, var(--modal-bg-light));
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            z-index: 50;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background-color: var(--bg-main, var(--bg-light));
+            border-radius: 1.5rem;
+            padding: 2rem;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 25px 50px -12px var(--shadow, var(--shadow-light));
+            border: 1px solid var(--secondary, var(--secondary-light));
+            animation: slideInUp 0.4s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(30px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        #game-board {
+            display: grid;
+            touch-action: manipulation;
+            background-color: var(--secondary, var(--secondary-light));
+            padding: 0.5rem;
+            border-radius: 1rem;
+        }
+
+        .cell {
+            background-color: var(--cell-bg, var(--cell-light));
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 800;
+            font-size: 1.25rem;
+            transition: all 0.1s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        .cell.revealed {
+            background-color: var(--cell-revealed-bg, var(--cell-revealed-light));
+            box-shadow: inset 0 2px 4px 0 var(--shadow, var(--shadow-light));
+        }
+        .cell.mine {
+            background-color: #ef4444;
+        }
+
+        /* Responsive font sizes for cells */
+        .c-1 { color: #3b82f6; } /* 1 */
+        .c-2 { color: #22c55e; } /* 2 */
+        .c-3 { color: #ef4444; } /* 3 */
+        .c-4 { color: #8b5cf6; } /* 4 */
+        .c-5 { color: #f97316; } /* 5 */
+        .c-6 { color: #14b8a6; } /* 6 */
+        .c-7 { color: #ec4899; } /* 7 */
+        .c-8 { color: #64748b; } /* 8 */
+
+        .animated-svg-rule {
+            animation: rule-anim 2s infinite ease-in-out;
+        }
+        @keyframes rule-anim {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+    </style>
+</head>
+<body class="antialiased overflow-hidden">
+    <div id="app" class="app-container">
+        <!-- App content will be rendered here by JavaScript -->
+    </div>
+
+    <audio id="bg-music" loop src="music.mp3"></audio>
+
+    <script>
+        const App = {
+            // STATE MANAGEMENT
+            state: {
+                currentScreen: 'menu', // 'menu', 'game'
+                theme: 'light', // 'light', 'dark'
+                soundEnabled: true,
+                musicEnabled: true,
+                difficulty: null, // { rows, cols, mines }
+                board: [],
+                gameStarted: false,
+                gameOver: false,
+                minesLeft: 0,
+                time: 0,
+                timerInterval: null,
+                isLongPress: false,
+                pressTimer: null,
+                stats: {
+                    'easy': { wins: 0, bestTime: null },
+                    'medium': { wins: 0, bestTime: null },
+                    'hard': { wins: 0, bestTime: null },
+                    'expert': { wins: 0, bestTime: null },
+                }
+            },
+
+            // GAME MODES
+            difficulties: {
+                easy: { rows: 10, cols: 8, mines: 10, name: 'Легко (10x8)' },
+                medium: { rows: 16, cols: 10, mines: 30, name: 'Средне (16x10)' },
+                hard: { rows: 20, cols: 12, mines: 60, name: 'Сложно (20x12)' },
+                expert: { rows: 24, cols: 14, mines: 99, name: 'Эксперт (24x14)' },
+            },
+
+            // AUDIO ENGINE (Tone.js)
+            sounds: {},
+            initAudio() {
+                this.sounds.click = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.0, release: 0.1 } }).toDestination();
+                this.sounds.flag = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.0, release: 0.1 } }).toDestination();
+                this.sounds.win = new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsawtooth' }, envelope: { attack: 0.1, decay: 0.4, sustain: 0, release: 0.4 } }).toDestination();
+                this.sounds.lose = new Tone.NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.005, decay: 0.5, sustain: 0.1, release: 0.1 } }).toDestination();
+                this.sounds.uiClick = new Tone.MembraneSynth().toDestination();
+            },
+            playSound(sound) {
+                if (!this.state.soundEnabled || !this.sounds[sound]) return;
+                try {
+                    if (sound === 'click') this.sounds.click.triggerAttackRelease('C5', '8n');
+                    if (sound === 'flag') this.sounds.flag.triggerAttackRelease('G4', '8n');
+                    if (sound === 'win') this.sounds.win.triggerAttackRelease(['C4', 'E4', 'G4', 'C5'], '8n', Tone.now());
+                    if (sound === 'lose') this.sounds.lose.triggerAttackRelease('16n');
+                    if (sound === 'uiClick') this.sounds.uiClick.triggerAttackRelease("C2", "8n");
+                } catch (e) {
+                    console.error("Audio error:", e);
+                }
+            },
+
+            // INITIALIZATION
+            init() {
+                this.loadSettings();
+                this.applyTheme();
+                this.initAudio();
+                this.render();
+            },
+
+            // RENDER LOGIC
+            render() {
+                const appContainer = document.getElementById('app');
+                appContainer.innerHTML = ''; // Clear previous screen
+
+                switch (this.state.currentScreen) {
+                    case 'menu':
+                        appContainer.appendChild(this.createMainMenu());
+                        break;
+                    case 'game':
+                        appContainer.appendChild(this.createGameScreen());
+                        // Defer board rendering to prevent layout bugs
+                        setTimeout(() => this.renderBoard(), 0);
+                        break;
+                }
+            },
+            
+            // UI COMPONENTS (HTML Creation)
+            createMainMenu() {
+                const menu = document.createElement('div');
+                menu.className = 'main-menu justify-center';
+                menu.innerHTML = `
+                    <div>
+                        <div class="text-center">
+                            <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight">Сапер</h1>
+                            <p class="text-lg opacity-70 mt-2">Классика в новом виде</p>
+                        </div>
+                        <div class="flex flex-col gap-4 mt-8">
+                            ${Object.keys(this.difficulties).map(key => `
+                                <button class="btn btn-primary difficulty-btn" data-difficulty="${key}">${this.difficulties[key].name}</button>
+                            `).join('')}
+                        </div>
+                        <div class="grid grid-cols-3 gap-4 pt-8 w-full max-w-xs mx-auto">
+                            <button id="rules-btn" class="btn-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" /></svg>
+                            </button>
+                            <button id="stats-btn" class="btn-icon">
+                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+                            </button>
+                            <button id="settings-btn" class="btn-icon">
+                               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-1.007 1.11-.95.597.055 1.172.527 1.172 1.181v1.168m-2.131 1.653a4.5 4.5 0 011.141-2.453m-1.141 2.453L9.594 9.594m2.131-1.653a4.5 4.5 0 00-2.453 1.141m2.453-1.141L14.406 9.594m-2.131-1.653v1.168m2.131 1.653c.284.172.587.27.904-.27.597 0 1.172-.488 1.172-1.181s-.575 1.181-1.172 1.181h-.421m-1.839 2.453a4.5 4.5 0 01-1.141-2.453m1.141 2.453L12 12m-2.131-1.653a4.5 4.5 0 00-2.453 1.141m2.453-1.141L9.594 9.594m5.657 5.657a4.5 4.5 0 01-1.141 2.453m1.141-2.453L14.406 12m-2.131 1.653a4.5 4.5 0 002.453-1.141m-2.453 1.141L12 12m-2.131 1.653v-1.168m-2.131-1.653c-.284-.172-.587-.27-.904-.27-.597 0-1.172.488-1.172 1.181s.575 1.181 1.172 1.181h.421m1.839-2.453a4.5 4.5 0 011.141 2.453m-1.141-2.453L12 12m2.131 1.653a4.5 4.5 0 002.453-1.141m-2.453-1.141L14.406 12M12 21.75c-5.122 0-9.25-4.128-9.25-9.25S6.878 3.25 12 3.25c5.122 0 9.25 4.128 9.25 9.25s-4.128 9.25-9.25 9.25z" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                menu.querySelectorAll('.difficulty-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        this.playSound('uiClick');
+                        const difficulty = e.target.dataset.difficulty;
+                        this.startGame(difficulty);
+                    };
+                });
+                menu.querySelector('#rules-btn').onclick = () => { this.playSound('uiClick'); this.showRulesModal(); };
+                menu.querySelector('#stats-btn').onclick = () => { this.playSound('uiClick'); this.showStatsModal(); };
+                menu.querySelector('#settings-btn').onclick = () => { this.playSound('uiClick'); this.showSettingsModal(); };
+
+                return menu;
+            },
+            
+            createGameScreen() {
+                const screen = document.createElement('div');
+                screen.className = 'game-screen';
+                screen.innerHTML = `
+                    <div class="flex justify-between items-center p-4 rounded-xl" style="background-color: var(--secondary, var(--secondary-light));">
+                        <div class="text-center">
+                            <div class="text-sm font-bold opacity-70">ВРЕМЯ</div>
+                            <div id="timer" class="text-3xl font-bold">00:00</div>
+                        </div>
+                        <button id="pause-btn" class="btn-icon w-14 h-14">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg>
+                        </button>
+                        <div class="text-center">
+                            <div class="text-sm font-bold opacity-70">МИНЫ</div>
+                            <div id="mines-left" class="text-3xl font-bold">${this.state.minesLeft}</div>
+                        </div>
+                    </div>
+                    <div id="game-board-container" class="flex-grow flex items-center justify-center min-h-0">
+                        <div id="game-board"></div>
+                    </div>
+                `;
+                screen.querySelector('#pause-btn').onclick = () => { this.playSound('uiClick'); this.showPauseModal(); };
+                return screen;
+            },
+
+            // GAME LOGIC
+            startGame(difficultyKey) {
+                this.state.difficulty = { key: difficultyKey, ...this.difficulties[difficultyKey] };
+                this.state.minesLeft = this.state.difficulty.mines;
+                this.state.time = 0;
+                this.state.gameStarted = false;
+                this.state.gameOver = false;
+                this.state.currentScreen = 'game';
+                this.updateMusicState();
+                this.render();
+            },
+
+            createBoard(firstClickRow, firstClickCol) {
+                const { rows, cols, mines } = this.state.difficulty;
+                let board = Array(rows).fill(null).map(() => Array(cols).fill(null).map(() => ({ mine: false, revealed: false, flagged: false, adjacentMines: 0 })));
+
+                let minesPlaced = 0;
+                while (minesPlaced < mines) {
+                    const r = Math.floor(Math.random() * rows);
+                    const c = Math.floor(Math.random() * cols);
+
+                    // Don't place a mine on the first click or adjacent to it
+                    const isFirstClickArea = Math.abs(r - firstClickRow) <= 1 && Math.abs(c - firstClickCol) <= 1;
+
+                    if (!board[r][c].mine && !isFirstClickArea) {
+                        board[r][c].mine = true;
+                        minesPlaced++;
+                    }
+                }
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        if (board[r][c].mine) continue;
+                        let count = 0;
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                if (dr === 0 && dc === 0) continue;
+                                const nr = r + dr;
+                                const nc = c + dc;
+                                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].mine) {
+                                    count++;
+                                }
+                            }
+                        }
+                        board[r][c].adjacentMines = count;
+                    }
+                }
+                this.state.board = board;
+            },
+            
+            renderBoard() {
+                const { rows, cols } = this.state.difficulty;
+                const boardElement = document.getElementById('game-board');
+                const containerElement = document.getElementById('game-board-container');
+                boardElement.innerHTML = '';
+
+                // Calculate cell size based on container size to ensure board width matches top panel
+                const containerWidth = containerElement.clientWidth;
+                const containerHeight = containerElement.clientHeight;
+
+                // Prioritize fitting to width
+                let cellSize = Math.floor((containerWidth - 16) / cols) - 4; // 16px for board padding, 4px for cell gap
+
+                // Check if this size fits vertically. If not, recalculate based on height.
+                const requiredBoardHeight = (cellSize + 4) * rows + 12; // cell + gap * rows + padding
+                if (requiredBoardHeight > containerHeight) {
+                    cellSize = Math.floor((containerHeight - 16) / rows) - 4;
+                }
+                
+                boardElement.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+                boardElement.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+                boardElement.style.gap = '4px';
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.row = r;
+                        cell.dataset.col = c;
+                        cell.style.fontSize = `${cellSize * 0.5}px`;
+
+                        // Touch and Mouse events for click and long press
+                        cell.addEventListener('mousedown', (e) => {
+                           if (e.button !== 0) return; // Only left click
+                           this.handlePressStart(r, c);
+                        });
+                        cell.addEventListener('mouseup', () => this.handlePressEnd(r, c));
+                        cell.addEventListener('mouseleave', () => this.cancelPress());
+                        cell.addEventListener('touchstart', (e) => {
+                            e.preventDefault();
+                            this.handlePressStart(r, c);
+                        }, { passive: false });
+                        cell.addEventListener('touchend', (e) => {
+                            e.preventDefault();
+                            this.handlePressEnd(r, c);
+                        });
+
+                        boardElement.appendChild(cell);
+                    }
+                }
+            },
+            
+            updateBoard() {
+                 const { rows, cols } = this.state.difficulty;
+                 for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const cellElement = document.querySelector(`.cell[data-row='${r}'][data-col='${c}']`);
+                        const cellData = this.state.board[r][c];
+                        cellElement.innerHTML = '';
+                        cellElement.className = 'cell';
+                        if (cellData.flagged) {
+                            cellElement.innerHTML = '🚩';
+                        }
+                        if (cellData.revealed) {
+                            cellElement.classList.add('revealed');
+                            if (cellData.mine) {
+                                cellElement.innerHTML = '💣';
+                                cellElement.classList.add('mine');
+                            } else if (cellData.adjacentMines > 0) {
+                                cellElement.textContent = cellData.adjacentMines;
+                                cellElement.classList.add(`c-${cellData.adjacentMines}`);
+                            }
+                        }
+                    }
+                 }
+                 document.getElementById('mines-left').textContent = this.state.minesLeft;
+            },
+
+            handlePressStart(r, c) {
+                if (this.state.gameOver) return;
+                // If game has started, check if cell is already revealed.
+                // This check prevents the error before the board is created.
+                if (this.state.gameStarted && this.state.board[r][c].revealed) return;
+
+                this.state.isLongPress = false;
+                this.state.pressTimer = setTimeout(() => {
+                    this.state.isLongPress = true;
+                    this.toggleFlag(r, c);
+                }, 250); // 250ms for long press
+            },
+
+            handlePressEnd(r, c) {
+                clearTimeout(this.state.pressTimer);
+                if (!this.state.isLongPress) {
+                    this.revealCell(r, c);
+                }
+            },
+
+            cancelPress() {
+                clearTimeout(this.state.pressTimer);
+            },
+            
+            toggleFlag(r, c) {
+                if (this.state.gameOver || this.state.board[r][c].revealed) return;
+                
+                const cell = this.state.board[r][c];
+                if (!cell.flagged && this.state.minesLeft === 0) return;
+
+                cell.flagged = !cell.flagged;
+                this.state.minesLeft += cell.flagged ? -1 : 1;
+                this.playSound('flag');
+                this.updateBoard();
+            },
+
+            revealCell(r, c) {
+                if (this.state.gameOver) return;
+
+                if (!this.state.gameStarted) {
+                    this.createBoard(r, c);
+                    this.state.gameStarted = true;
+                    this.startTimer();
+                }
+                
+                const cell = this.state.board[r][c];
+                if (cell.revealed || cell.flagged) return;
+
+                cell.revealed = true;
+                this.playSound('click');
+
+                if (cell.mine) {
+                    this.endGame(false); // Lose
+                } else if (cell.adjacentMines === 0) {
+                    this.revealNeighbors(r, c);
+                }
+                
+                this.updateBoard();
+                this.checkWinCondition();
+            },
+
+            revealNeighbors(r, c) {
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = r + dr;
+                        const nc = c + dc;
+                        if (nr >= 0 && nr < this.state.difficulty.rows && nc >= 0 && nc < this.state.difficulty.cols) {
+                            if (!this.state.board[nr][nc].revealed && !this.state.board[nr][nc].flagged) {
+                               this.revealCell(nr, nc);
+                            }
+                        }
+                    }
+                }
+            },
+            
+            startTimer() {
+                this.stopTimer();
+                this.state.timerInterval = setInterval(() => {
+                    this.state.time++;
+                    document.getElementById('timer').textContent = this.formatTime(this.state.time);
+                }, 1000);
+            },
+
+            stopTimer() {
+                clearInterval(this.state.timerInterval);
+            },
+            
+            checkWinCondition() {
+                const { rows, cols, mines } = this.state.difficulty;
+                let revealedCount = 0;
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        if (this.state.board[r][c].revealed) {
+                            revealedCount++;
+                        }
+                    }
+                }
+                if (revealedCount === (rows * cols) - mines) {
+                    this.endGame(true); // Win
+                }
+            },
+            
+            endGame(isWin) {
+                this.stopTimer();
+                this.state.gameOver = true;
+                
+                // Reveal all mines
+                this.state.board.forEach(row => row.forEach(cell => {
+                    if (cell.mine) cell.revealed = true;
+                }));
+                this.updateBoard();
+
+                if (isWin) {
+                    this.playSound('win');
+                    this.updateStats(true);
+                    setTimeout(() => this.showWinLoseModal(true), 500);
+                } else {
+                    this.playSound('lose');
+                    this.updateStats(false);
+                    setTimeout(() => this.showWinLoseModal(false), 500);
+                }
+            },
+
+            // MODALS
+            showModal(content) {
+                const modal = document.createElement('div');
+                modal.className = 'modal-overlay';
+                modal.innerHTML = `<div class="modal-content">${content}</div>`;
+                modal.onclick = (e) => {
+                    if (e.target === modal) {
+                        this.closeModal();
+                    }
+                };
+                document.body.appendChild(modal);
+            },
+            closeModal() {
+                this.playSound('uiClick');
+                const modal = document.querySelector('.modal-overlay');
+                if (modal) {
+                    modal.style.animation = 'fadeOut 0.3s ease';
+                    modal.firstChild.style.animation = 'slideOutDown 0.4s ease-out';
+                    setTimeout(() => modal.remove(), 300);
+                }
+            },
+            
+            showSettingsModal() {
+                const content = `
+                    <h2 class="text-3xl font-bold text-center mb-6">Настройки</h2>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));">
+                            <span class="font-semibold">Тема</span>
+                            <button id="theme-toggle" class="btn text-sm px-4 py-2">${this.state.theme === 'light' ? 'Светлая ☀️' : 'Темная 🌙'}</button>
+                        </div>
+                        <div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));">
+                            <span class="font-semibold">Звуки</span>
+                            <button id="sound-toggle" class="btn text-sm px-4 py-2">${this.state.soundEnabled ? 'Вкл 🔊' : 'Выкл 🔇'}</button>
+                        </div>
+                        <div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));">
+                            <span class="font-semibold">Музыка</span>
+                            <button id="music-toggle" class="btn text-sm px-4 py-2">${this.state.musicEnabled ? 'Вкл 🎵' : 'Выкл 🔇'}</button>
+                        </div>
+                    </div>
+                     <button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Закрыть</button>
+                `;
+                this.showModal(content);
+                document.getElementById('theme-toggle').onclick = () => this.toggleTheme();
+                document.getElementById('sound-toggle').onclick = () => this.toggleSound();
+                document.getElementById('music-toggle').onclick = () => this.toggleMusic();
+                document.getElementById('close-modal-btn').onclick = () => this.closeModal();
+            },
+
+            showRulesModal() {
+                const content = `
+                    <h2 class="text-3xl font-bold text-center mb-6">Правила Игры</h2>
+                    <div class="space-y-4 text-left">
+                        <div class="flex items-center gap-4">
+                            <div class="cell revealed c-1 animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">1</div>
+                            <p class="flex-1"><span class="font-bold">Нажмите</span> на ячейку, чтобы открыть ее. Цифра показывает, сколько мин находится вокруг.</p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <div class="cell animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">🚩</div>
+                            <p class="flex-1"><span class="font-bold">Удерживайте</span> ячейку, чтобы поставить или убрать флажок. Флажками отмечаются предполагаемые мины.</p>
+                        </div>
+                        <div class="flex items-center gap-4">
+                             <div class="cell revealed mine animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">💣</div>
+                            <p class="flex-1">Цель: открыть все ячейки, не содержащие мин. Если вы откроете мину - игра окончена.</p>
+                        </div>
+                    </div>
+                    <button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Понятно!</button>
+                `;
+                this.showModal(content);
+                document.getElementById('close-modal-btn').onclick = () => this.closeModal();
+            },
+
+            showStatsModal() {
+                const content = `
+                    <h2 class="text-3xl font-bold text-center mb-6">Статистика</h2>
+                    <div class="space-y-2">
+                    ${Object.keys(this.difficulties).map(key => `
+                        <div class="p-3 rounded-lg grid grid-cols-3 gap-2 items-center text-center" style="background-color: var(--secondary, var(--secondary-light));">
+                           <span class="font-semibold text-left col-span-1">${this.difficulties[key].name.split(' ')[0]}</span>
+                           <span class="text-sm">Побед: <span class="font-bold">${this.state.stats[key].wins}</span></span>
+                           <span class="text-sm">Время: <span class="font-bold">${this.state.stats[key].bestTime !== null ? this.state.stats[key].bestTime + 's' : '---'}</span></span>
+                        </div>
+                    `).join('')}
+                    </div>
+                    <button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Закрыть</button>
+                `;
+                this.showModal(content);
+                document.getElementById('close-modal-btn').onclick = () => this.closeModal();
+            },
+            
+            showPauseModal() {
+                this.stopTimer();
+                const content = `
+                    <h2 class="text-3xl font-bold text-center mb-6">Пауза</h2>
+                    <div class="flex flex-col gap-4">
+                        <button id="resume-btn" class="btn btn-primary">Продолжить</button>
+                        <button id="menu-btn" class="btn">В меню</button>
+                    </div>
+                `;
+                this.showModal(content);
+                document.getElementById('resume-btn').onclick = () => {
+                    this.closeModal();
+                    this.startTimer();
+                };
+                document.getElementById('menu-btn').onclick = () => {
+                    this.closeModal();
+                    this.state.currentScreen = 'menu';
+                    this.render();
+                };
+            },
+            
+            showWinLoseModal(isWin) {
+                const title = isWin ? 'Победа! 🎉' : 'Поражение 💣';
+                const message = isWin ? `Отлично! Ваше время: ${this.formatTime(this.state.time)}.` : 'Упс! Кажется, вы наткнулись на мину.';
+                const content = `
+                    <div class="text-center">
+                        <h2 class="text-4xl font-extrabold mb-4">${title}</h2>
+                        <p class="text-lg opacity-80 mb-8">${message}</p>
+                        <div class="flex flex-col gap-4">
+                            <button id="play-again-btn" class="btn btn-primary">Играть снова</button>
+                            <button id="menu-btn" class="btn">В меню</button>
+                        </div>
+                    </div>
+                `;
+                this.showModal(content);
+                document.getElementById('play-again-btn').onclick = () => {
+                     this.closeModal();
+                     this.startGame(this.state.difficulty.key);
+                };
+                document.getElementById('menu-btn').onclick = () => {
+                    this.closeModal();
+                    this.state.currentScreen = 'menu';
+                    this.render();
+                };
+            },
+            
+            // SETTINGS & DATA
+            toggleTheme() {
+                this.playSound('uiClick');
+                this.state.theme = this.state.theme === 'light' ? 'dark' : 'light';
+                this.applyTheme();
+                this.saveSettings();
+                const themeBtn = document.getElementById('theme-toggle');
+                if (themeBtn) {
+                     themeBtn.innerHTML = this.state.theme === 'light' ? 'Светлая ☀️' : 'Темная 🌙';
+                }
+            },
+            applyTheme() {
+                if (this.state.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            },
+            toggleSound() {
+                this.state.soundEnabled = !this.state.soundEnabled;
+                this.playSound('uiClick');
+                this.saveSettings();
+                 // Update button text without reopening modal
+                const soundBtn = document.getElementById('sound-toggle');
+                if (soundBtn) {
+                    soundBtn.innerHTML = this.state.soundEnabled ? 'Вкл 🔊' : 'Выкл 🔇';
+                }
+            },
+            
+            toggleMusic() {
+                this.state.musicEnabled = !this.state.musicEnabled;
+                this.playSound('uiClick');
+                this.updateMusicState();
+                this.saveSettings();
+                const musicBtn = document.getElementById('music-toggle');
+                if (musicBtn) {
+                    musicBtn.innerHTML = this.state.musicEnabled ? 'Вкл 🎵' : 'Выкл 🔇';
+                }
+            },
+
+            updateMusicState() {
+                const music = document.getElementById('bg-music');
+                if (this.state.musicEnabled) {
+                    music.play().catch(e => console.log("Music play was prevented by browser."));
+                } else {
+                    music.pause();
+                }
+            },
+
+            saveSettings() {
+                localStorage.setItem('minesweeper_settings', JSON.stringify({
+                    theme: this.state.theme,
+                    soundEnabled: this.state.soundEnabled,
+                    musicEnabled: this.state.musicEnabled,
+                    stats: this.state.stats
+                }));
+            },
+            loadSettings() {
+                const settings = JSON.parse(localStorage.getItem('minesweeper_settings'));
+                if (settings) {
+                    this.state.theme = settings.theme || 'light';
+                    this.state.soundEnabled = settings.soundEnabled !== false; // true by default
+                    this.state.musicEnabled = settings.musicEnabled !== false;
+                    this.state.stats = settings.stats || this.state.stats;
+                }
+            },
+
+            updateStats(isWin) {
+                const key = this.state.difficulty.key;
+                if (isWin) {
+                    this.state.stats[key].wins++;
+                    if (this.state.stats[key].bestTime === null || this.state.time < this.state.stats[key].bestTime) {
+                        this.state.stats[key].bestTime = this.state.time;
+                    }
+                }
+                this.saveSettings();
+            },
+
+            formatTime(totalSeconds) {
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+        };
+
+        // Start the application
+        document.addEventListener('DOMContentLoaded', () => App.init());
+        window.addEventListener('resize', () => {
+            if (App.state.currentScreen === 'game') {
+                App.renderBoard();
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
