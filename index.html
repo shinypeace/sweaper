@@ -219,8 +219,8 @@
             difficulties: {
                 easy:   { rows: 10, cols: 8, mines: 10, name: 'Легко (10x8)' },
                 medium: { rows: 15, cols: 12, mines: 30, name: 'Средне (15x12)' },
-                hard:   { rows: 21, cols: 13, mines: 60, name: 'Сложно (21x13)' },
-                expert: { rows: 23, cols: 14, mines: 99, name: 'Эксперт (23x14)' },
+                hard:   { rows: 18, cols: 15, mines: 60, name: 'Сложно (18x15)' },
+                expert: { rows: 20, cols: 16, mines: 99, name: 'Эксперт (20x16)' },
             },
 
             // VK INTEGRATION
@@ -289,7 +289,6 @@
                     if (sound === 'lose') this.sounds.lose.triggerAttackRelease('16n');
                     if (sound === 'uiClick') this.sounds.uiClick.triggerAttackRelease("C2", "8n");
                     
-                    // New win sound trigger (arpeggio)
                     if (sound === 'win') {
                         const now = Tone.now();
                         this.sounds.win.triggerAttackRelease('C4', '8n', now);
@@ -307,14 +306,12 @@
                 this.initAudio();
                 this.render();
 
-                // This listener starts audio context on first user interaction
-                // It's a browser requirement to prevent autoplay abuse.
                 document.body.addEventListener('click', async () => {
                     if (Tone.context.state !== 'running') {
                         await Tone.start();
                         console.log('AudioContext started!');
                     }
-                    this.updateMusicState(); // Update music state on first interaction
+                    this.updateMusicState(); 
                 }, { once: true });
             },
 
@@ -368,231 +365,88 @@
                 return menu;
             },
             
-            createGameScreen() { /* ... unchanged ... */ return screen; }, 
-            startGame(difficultyKey) { /* ... unchanged ... */ },
-            createBoard(firstClickRow, firstClickCol) { /* ... unchanged ... */ },
-            renderBoard() { /* ... unchanged ... */ },
-            updateBoard() { /* ... unchanged ... */ },
-            handlePressStart(r, c) { /* ... unchanged ... */ },
-            handlePressEnd(r, c) { /* ... unchanged ... */ },
-            cancelPress() { /* ... unchanged ... */ },
-            toggleFlag(r, c) { /* ... unchanged ... */ },
-            revealCell(r, c) { /* ... unchanged ... */ },
-            revealNeighbors(r, c) { /* ... unchanged ... */ },
-            startTimer() { /* ... unchanged ... */ },
-            stopTimer() { /* ... unchanged ... */ },
-            checkWinCondition() { /* ... unchanged ... */ },
-            
-            endGame(isWin) {
-                this.stopTimer();
-                this.state.gameOver = true;
-                this.state.board.forEach(row => row.forEach(cell => { if (cell.mine) cell.revealed = true; }));
-                this.updateBoard();
+            renderBoard() {
+                const { rows, cols } = this.state.difficulty;
+                const boardElement = document.getElementById('game-board');
+                const containerElement = document.getElementById('game-board-container');
+                if (!boardElement || !containerElement) return;
 
-                if (isWin) {
-                    this.playSound('win');
-                    this.updateStats();
-                    this.vk.showInterstitial();
-                    setTimeout(() => this.showWinLoseModal(true), 500);
-                } else {
-                    this.playSound('lose');
-                    setTimeout(() => this.showWinLoseModal(false), 500);
+                boardElement.innerHTML = '';
+                const containerWidth = containerElement.clientWidth;
+                const containerHeight = containerElement.clientHeight;
+                
+                // --- Smart Gap Adjustment ---
+                const difficultyKey = this.state.difficulty.key;
+                let gap = 4; // Default for easy/medium
+                if (difficultyKey === 'hard' || difficultyKey === 'expert') {
+                    gap = 2; // Smaller gap for dense boards
                 }
-            },
-            
-            showModal(content) { /* ... unchanged ... */ },
-            closeModal() { /* ... unchanged ... */ },
-            
-            showSettingsModal() {
-                const content = `
-                    <h2 class="text-3xl font-bold text-center mb-6">Настройки</h2>
-                    <div class="flex flex-col gap-4">
-                        <div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));">
-                            <span class="font-semibold">Тема</span>
-                            <button id="theme-toggle" class="btn text-sm px-4 py-2">${this.state.theme === 'light' ? 'Светлая ☀️' : 'Темная 🌙'}</button>
-                        </div>
-                        <div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));">
-                            <span class="font-semibold">Звуки</span>
-                            <button id="sound-toggle" class="btn text-sm px-4 py-2">${this.state.soundEnabled ? 'Вкл 🔊' : 'Выкл 🔇'}</button>
-                        </div>
-                        <div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));">
-                            <span class="font-semibold">Музыка</span>
-                            <button id="music-toggle" class="btn text-sm px-4 py-2">${this.state.musicEnabled ? 'Вкл 🎵' : 'Выкл 🔇'}</button>
-                        </div>
-                    </div>
-                     <button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Закрыть</button>`;
-                this.showModal(content);
-                document.getElementById('theme-toggle').onclick = () => this.toggleTheme();
-                document.getElementById('sound-toggle').onclick = () => this.toggleSound();
-                document.getElementById('music-toggle').onclick = () => this.toggleMusic();
-                document.getElementById('close-modal-btn').onclick = () => this.closeModal();
-            },
-            
-            showRulesModal() { /* ... unchanged ... */ },
+                const padding = 16; // Combined padding of the board container
 
-            showStatsModal() {
-                const content = `
-                    <h2 class="text-3xl font-bold text-center mb-6">Статистика</h2>
-                    <div class="space-y-2">
-                        <div class="grid grid-cols-3 gap-2 text-center font-bold p-2 opacity-70">
-                            <span>Уровень</span>
-                            <span>Побед</span>
-                            <span>Время</span>
-                        </div>
-                        ${Object.keys(this.difficulties).map(key => `
-                            <div class="p-3 rounded-lg grid grid-cols-3 gap-2 items-center text-center" style="background-color: var(--secondary, var(--secondary-light));">
-                               <span class="font-semibold text-left">${this.difficulties[key].name.split(' ')[0]}</span>
-                               <span>${this.state.stats[key].wins}</span>
-                               <span>${this.state.stats[key].bestTime !== Infinity ? this.formatTime(this.state.stats[key].bestTime) : '--:--'}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Закрыть</button>`;
-                this.showModal(content);
-                document.getElementById('close-modal-btn').onclick = () => this.closeModal();
-            },
-            
-            showOtherGamesModal() {
-                 const games = [
-                    { name: 'Bubble Shooter', appId: 54051411, icon: 'icon1.png' }, { name: 'Тетрис', appId: 54051413, icon: 'icon2.png' },
-                    { name: 'Tower Blocks', appId: 53962513, icon: 'icon3.png' }, { name: 'Блок Про', appId: 53936296, icon: 'icon4.png' },
-                    { name: 'Филворды', appId: 53867134, icon: 'icon5.png' }, { name: 'Словли', appId: 53861990, icon: 'icon6.png' },
-                    { name: 'Brick Balls', appId: 54023580, icon: 'icon7.png' }, { name: '2048', appId: 53965380, icon: 'icon8.png' },
-                    { name: 'Math Matrix', appId: 53970659, icon: 'icon9.png' }
-                ];
-                const content = `
-                    <h2 class="text-3xl font-bold text-center mb-6">Другие игры</h2>
-                    <div class="grid grid-cols-3 gap-x-4 gap-y-6">
-                    ${games.map(game => `
-                        <div class="flex flex-col items-center cursor-pointer group" onclick="vkBridge.send('VKWebAppOpenApp', { app_id: ${game.appId} })">
-                            <div class="w-20 h-20 bg-gray-200 dark:bg-gray-700 rounded-3xl mb-2 flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden">
-                               <img src="${game.icon}" alt="${game.name}" class="w-full h-full object-cover">
-                            </div>
-                            <span class="text-sm font-medium text-center">${game.name}</span>
-                        </div>
-                    `).join('')}
-                    </div>
-                    <button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Назад</button>`;
-                this.showModal(content);
-                document.getElementById('close-modal-btn').onclick = () => this.closeModal();
-            },
-            
-            showPauseModal() { /* ... unchanged ... */ },
-            showWinLoseModal(isWin) { /* ... unchanged ... */ },
-            
-            toggleTheme() { /* ... unchanged ... */ },
-            applyTheme() { /* ... unchanged ... */ },
-            toggleSound() { /* ... unchanged ... */ },
-            toggleMusic() {
-                this.state.musicEnabled = !this.state.musicEnabled;
-                this.playSound('uiClick');
-                this.updateMusicState();
-                this.saveSettings();
-                const musicBtn = document.getElementById('music-toggle');
-                if (musicBtn) { musicBtn.innerHTML = this.state.musicEnabled ? 'Вкл 🎵' : 'Выкл 🔇'; }
-            },
-            updateMusicState(forceState, isFromBackground = false) {
-                const music = document.getElementById('bg-music');
-                let shouldPlay;
-                if (typeof forceState === 'boolean') {
-                    shouldPlay = forceState;
-                } else {
-                    shouldPlay = this.state.musicEnabled;
-                }
+                // Calculate cell size based on available space and gap
+                let cellSize = Math.floor((containerWidth - padding) / cols) - gap;
+                const requiredBoardHeight = (cellSize + gap) * rows + padding;
 
-                if (shouldPlay && (Tone.context.state === 'running' || isFromBackground)) {
-                    music.play().catch(e => console.log("Music play prevented by browser."));
-                } else {
-                    music.pause();
-                }
-            },
-
-            async saveSettings() {
-                if (!this.vk.userId) return;
-                const storageKey = `minesweeper_data_${this.vk.userId}`;
-                const dataToSave = JSON.stringify({
-                    theme: this.state.theme,
-                    soundEnabled: this.state.soundEnabled,
-                    musicEnabled: this.state.musicEnabled,
-                    stats: this.state.stats,
-                    gamesPlayedSinceAd: this.state.gamesPlayedSinceAd,
-                });
-                try {
-                    await vkBridge.send('VKWebAppStorageSet', { key: storageKey, value: dataToSave });
-                } catch (error) {
-                    localStorage.setItem(storageKey, dataToSave);
-                }
-            },
-            async loadSettings() {
-                if (!this.vk.userId) return;
-                const storageKey = `minesweeper_data_${this.vk.userId}`;
-                let loadedData = null;
-                try {
-                    const response = await vkBridge.send('VKWebAppStorageGet', { keys: [storageKey] });
-                    if (response.keys[0]?.value) loadedData = JSON.parse(response.keys[0].value);
-                } catch (error) {
-                    const localData = localStorage.getItem(storageKey);
-                    if (localData) loadedData = JSON.parse(localData);
+                if (requiredBoardHeight > containerHeight) {
+                    cellSize = Math.floor((containerHeight - padding) / rows) - gap;
                 }
                 
-                if (loadedData) {
-                    this.state.theme = loadedData.theme || 'light';
-                    this.state.soundEnabled = loadedData.soundEnabled !== false;
-                    this.state.musicEnabled = loadedData.musicEnabled !== false;
-                    this.state.gamesPlayedSinceAd = loadedData.gamesPlayedSinceAd || 0;
-                     if(loadedData.stats) {
-                        for (const key in this.state.stats) {
-                           if(loadedData.stats[key]) {
-                               this.state.stats[key].wins = loadedData.stats[key].wins || 0;
-                               this.state.stats[key].bestTime = loadedData.stats[key].bestTime === null ? Infinity : loadedData.stats[key].bestTime || Infinity;
-                           }
-                        }
+                boardElement.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+                boardElement.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+                boardElement.style.gap = `${gap}px`;
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.row = r;
+                        cell.dataset.col = c;
+                        cell.style.fontSize = `${cellSize * 0.5}px`;
+                        // Re-add event listeners
+                        cell.addEventListener('mousedown', (e) => { if (e.button !== 0) return; this.handlePressStart(r, c); });
+                        cell.addEventListener('mouseup', () => this.handlePressEnd(r, c));
+                        cell.addEventListener('mouseleave', () => this.cancelPress());
+                        cell.addEventListener('touchstart', (e) => { e.preventDefault(); this.handlePressStart(r, c); }, { passive: false });
+                        cell.addEventListener('touchend', (e) => { e.preventDefault(); this.handlePressEnd(r, c); });
+                        boardElement.appendChild(cell);
                     }
                 }
             },
 
-            updateStats() {
-                const key = this.state.difficulty.key;
-                this.state.stats[key].wins++;
-                if (this.state.time < this.state.stats[key].bestTime) {
-                    this.state.stats[key].bestTime = this.state.time;
-                }
-                this.saveSettings();
-            },
-
-            formatTime(totalSeconds) {
-                if (totalSeconds === Infinity || totalSeconds === null) return '--:--';
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = totalSeconds % 60;
-                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            }
+            // --- UNCHANGED FUNCTIONS START HERE ---
+            createGameScreen() { const screen = document.createElement('div'); screen.className = 'game-screen'; screen.innerHTML = `<div class="flex justify-between items-center p-4 rounded-xl" style="background-color: var(--secondary, var(--secondary-light));"><div class="text-center"><div class="text-sm font-bold opacity-70">ВРЕМЯ</div><div id="timer" class="text-3xl font-bold">00:00</div></div><button id="pause-btn" class="btn-icon w-14 h-14"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button><div class="text-center"><div class="text-sm font-bold opacity-70">МИНЫ</div><div id="mines-left" class="text-3xl font-bold">${this.state.minesLeft}</div></div></div><div id="game-board-container" class="flex-grow flex items-center justify-center min-h-0"><div id="game-board"></div></div>`; screen.querySelector('#pause-btn').onclick = () => { this.playSound('uiClick'); this.showPauseModal(); }; return screen; },
+            startGame(difficultyKey) { this.state.difficulty = { key: difficultyKey, ...this.difficulties[difficultyKey] }; this.state.minesLeft = this.state.difficulty.mines; this.state.time = 0; this.state.gameStarted = false; this.state.gameOver = false; this.state.currentScreen = 'game'; this.updateMusicState(); this.render(); },
+            createBoard(firstClickRow, firstClickCol) { const { rows, cols, mines } = this.state.difficulty; let board = Array(rows).fill(null).map(() => Array(cols).fill(null).map(() => ({ mine: false, revealed: false, flagged: false, adjacentMines: 0 }))); let minesPlaced = 0; while (minesPlaced < mines) { const r = Math.floor(Math.random() * rows); const c = Math.floor(Math.random() * cols); const isFirstClickArea = Math.abs(r - firstClickRow) <= 1 && Math.abs(c - firstClickCol) <= 1; if (!board[r][c].mine && !isFirstClickArea) { board[r][c].mine = true; minesPlaced++; } } for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { if (board[r][c].mine) continue; let count = 0; for (let dr = -1; dr <= 1; dr++) { for (let dc = -1; dc <= 1; dc++) { if (dr === 0 && dc === 0) continue; const nr = r + dr; const nc = c + dc; if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].mine) { count++; } } } board[r][c].adjacentMines = count; } } this.state.board = board; },
+            updateBoard() { const { rows, cols } = this.state.difficulty; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const cellElement = document.querySelector(`.cell[data-row='${r}'][data-col='${c}']`); const cellData = this.state.board[r][c]; cellElement.innerHTML = ''; cellElement.className = 'cell'; if (cellData.flagged) { cellElement.innerHTML = '🚩'; } if (cellData.revealed) { cellElement.classList.add('revealed'); if (cellData.mine) { cellElement.innerHTML = '💣'; cellElement.classList.add('mine'); } else if (cellData.adjacentMines > 0) { cellElement.textContent = cellData.adjacentMines; cellElement.classList.add(`c-${cellData.adjacentMines}`); } } } } document.getElementById('mines-left').textContent = this.state.minesLeft; },
+            handlePressStart(r,c){ if(this.state.gameOver)return; if(this.state.gameStarted&&this.state.board[r][c].revealed)return; this.state.isLongPress=!1; this.state.pressTimer=setTimeout(()=>{this.state.isLongPress=!0; this.toggleFlag(r,c)},250)},
+            handlePressEnd(r,c){ clearTimeout(this.state.pressTimer); if(!this.state.isLongPress)this.revealCell(r,c)},
+            cancelPress(){ clearTimeout(this.state.pressTimer)},
+            toggleFlag(r,c){ if(this.state.gameOver||this.state.board[r][c].revealed)return; const cell=this.state.board[r][c]; if(!cell.flagged&&this.state.minesLeft===0)return; cell.flagged=!cell.flagged; this.state.minesLeft+=cell.flagged?-1:1; this.playSound('flag'); this.updateBoard()},
+            revealCell(r,c){ if(this.state.gameOver)return; if(!this.state.gameStarted){ this.createBoard(r,c); this.state.gameStarted=!0; this.startTimer()} const cell=this.state.board[r][c]; if(cell.revealed||cell.flagged)return; cell.revealed=!0; this.playSound('click'); if(cell.mine)this.endGame(!1); else if(cell.adjacentMines===0)this.revealNeighbors(r,c); this.updateBoard(); this.checkWinCondition()},
+            revealNeighbors(r,c){ for(let dr=-1; dr<=1; dr++)for(let dc=-1; dc<=1; dc++){ if(dr===0&&dc===0)continue; const nr=r+dr; const nc=c+dc; if(nr>=0&&nr<this.state.difficulty.rows&&nc>=0&&nc<this.state.difficulty.cols&&!this.state.board[nr][nc].revealed&&!this.state.board[nr][nc].flagged)this.revealCell(nr,nc)}},
+            startTimer(){ this.stopTimer(); this.state.timerInterval=setInterval(()=>{this.state.time++; document.getElementById('timer').textContent=this.formatTime(this.state.time)},1e3)},
+            stopTimer(){ clearInterval(this.state.timerInterval)},
+            checkWinCondition(){ const{rows,cols,mines}=this.state.difficulty; let revealedCount=0; for(let r=0; r<rows; r++)for(let c=0; c<cols; c++)if(this.state.board[r][c].revealed)revealedCount++; if(revealedCount===rows*cols-mines)this.endGame(!0)},
+            endGame(isWin) { this.stopTimer(); this.state.gameOver = true; this.state.board.forEach(row => row.forEach(cell => { if (cell.mine) cell.revealed = true; })); this.updateBoard(); if (isWin) { this.playSound('win'); this.updateStats(); this.vk.showInterstitial(); setTimeout(() => this.showWinLoseModal(true), 500); } else { this.playSound('lose'); setTimeout(() => this.showWinLoseModal(false), 500); }},
+            showModal(content) { const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.innerHTML = `<div class="modal-content">${content}</div>`; modal.onclick = (e) => { if (e.target === modal) { this.closeModal(); } }; document.body.appendChild(modal); },
+            closeModal() { this.playSound('uiClick'); const modal = document.querySelector('.modal-overlay'); if (modal) { modal.style.animation = 'fadeOut 0.3s ease'; modal.firstChild.style.animation = 'slideOutDown 0.4s ease-out'; setTimeout(() => modal.remove(), 300); } },
+            showSettingsModal() { const content = `<h2 class="text-3xl font-bold text-center mb-6">Настройки</h2><div class="flex flex-col gap-4"><div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));"><span class="font-semibold">Тема</span><button id="theme-toggle" class="btn text-sm px-4 py-2">${this.state.theme === 'light' ? 'Светлая ☀️' : 'Темная 🌙'}</button></div><div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));"><span class="font-semibold">Звуки</span><button id="sound-toggle" class="btn text-sm px-4 py-2">${this.state.soundEnabled ? 'Вкл 🔊' : 'Выкл 🔇'}</button></div><div class="flex justify-between items-center p-4 rounded-lg" style="background-color: var(--secondary, var(--secondary-light));"><span class="font-semibold">Музыка</span><button id="music-toggle" class="btn text-sm px-4 py-2">${this.state.musicEnabled ? 'Вкл 🎵' : 'Выкл 🔇'}</button></div></div><button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Закрыть</button>`; this.showModal(content); document.getElementById('theme-toggle').onclick = () => this.toggleTheme(); document.getElementById('sound-toggle').onclick = () => this.toggleSound(); document.getElementById('music-toggle').onclick = () => this.toggleMusic(); document.getElementById('close-modal-btn').onclick = () => this.closeModal(); },
+            showRulesModal() { const content = `<h2 class="text-3xl font-bold text-center mb-6">Правила Игры</h2><div class="space-y-4 text-left"><div class="flex items-center gap-4"><div class="cell revealed c-1 animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">1</div><p class="flex-1"><span class="font-bold">Нажмите</span> на ячейку, чтобы открыть ее. Цифра показывает, сколько мин находится вокруг.</p></div><div class="flex items-center gap-4"><div class="cell animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">🚩</div><p class="flex-1"><span class="font-bold">Удерживайте</span> ячейку, чтобы поставить или убрать флажок. Флажками отмечаются предполагаемые мины.</p></div><div class="flex items-center gap-4"><div class="cell revealed mine animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">💣</div><p class="flex-1">Цель: открыть все ячейки, не содержащие мин. Если вы откроете мину - игра окончена.</p></div></div><button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Понятно!</button>`; this.showModal(content); document.getElementById('close-modal-btn').onclick = () => this.closeModal(); },
+            showStatsModal() { const content = `<h2 class="text-3xl font-bold text-center mb-6">Статистика</h2><div class="space-y-2"><div class="grid grid-cols-3 gap-2 text-center font-bold p-2 opacity-70"><span>Уровень</span><span>Побед</span><span>Время</span></div>${Object.keys(this.difficulties).map(key => `<div class="p-3 rounded-lg grid grid-cols-3 gap-2 items-center text-center" style="background-color: var(--secondary, var(--secondary-light));"><span class="font-semibold text-left">${this.difficulties[key].name.split(' ')[0]}</span><span>${this.state.stats[key].wins}</span><span>${this.state.stats[key].bestTime !== Infinity ? this.formatTime(this.state.stats[key].bestTime) : '--:--'}</span></div>`).join('')}</div><button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Закрыть</button>`; this.showModal(content); document.getElementById('close-modal-btn').onclick = () => this.closeModal(); },
+            showOtherGamesModal() { const games = [{ name: 'Bubble Shooter', appId: 54051411, icon: 'icon1.png' }, { name: 'Тетрис', appId: 54051413, icon: 'icon2.png' },{ name: 'Tower Blocks', appId: 53962513, icon: 'icon3.png' }, { name: 'Блок Про', appId: 53936296, icon: 'icon4.png' },{ name: 'Филворды', appId: 53867134, icon: 'icon5.png' }, { name: 'Словли', appId: 53861990, icon: 'icon6.png' },{ name: 'Brick Balls', appId: 54023580, icon: 'icon7.png' }, { name: '2048', appId: 53965380, icon: 'icon8.png' },{ name: 'Math Matrix', appId: 53970659, icon: 'icon9.png' }]; const content = `<h2 class="text-3xl font-bold text-center mb-6">Другие игры</h2><div class="grid grid-cols-3 gap-x-4 gap-y-6">${games.map(game => `<div class="flex flex-col items-center cursor-pointer group" onclick="vkBridge.send('VKWebAppOpenApp', { app_id: ${game.appId} })"><div class="w-20 h-20 bg-gray-200 dark:bg-gray-700 rounded-3xl mb-2 flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden"><img src="${game.icon}" alt="${game.name}" class="w-full h-full object-cover"></div><span class="text-sm font-medium text-center">${game.name}</span></div>`).join('')}</div><button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Назад</button>`; this.showModal(content); document.getElementById('close-modal-btn').onclick = () => this.closeModal(); },
+            showPauseModal() { this.stopTimer(); const content = `<h2 class="text-3xl font-bold text-center mb-6">Пауза</h2><div class="flex flex-col gap-4"><button id="resume-btn" class="btn btn-primary">Продолжить</button><button id="menu-btn" class="btn">В меню</button></div>`; this.showModal(content); document.getElementById('resume-btn').onclick = () => { this.closeModal(); this.startTimer(); }; document.getElementById('menu-btn').onclick = () => { this.closeModal(); this.state.currentScreen = 'menu'; this.render(); }; },
+            showWinLoseModal(isWin) { const title = isWin ? 'Победа! 🎉' : 'Поражение 💣'; const message = isWin ? `Отлично! Ваше время: ${this.formatTime(this.state.time)}.` : 'Упс! Кажется, вы наткнулись на мину.'; const content = `<div class="text-center"><h2 class="text-4xl font-extrabold mb-4">${title}</h2><p class="text-lg opacity-80 mb-8">${message}</p><div class="flex flex-col gap-4"><button id="play-again-btn" class="btn btn-primary">Играть снова</button><button id="menu-btn" class="btn">В меню</button></div></div>`; this.showModal(content); document.getElementById('play-again-btn').onclick = () => { this.closeModal(); this.startGame(this.state.difficulty.key); }; document.getElementById('menu-btn').onclick = () => { this.closeModal(); this.state.currentScreen = 'menu'; this.render(); }; },
+            toggleTheme(){ this.playSound('uiClick'); this.state.theme=this.state.theme==='light'?'dark':'light'; this.applyTheme(); this.saveSettings(); const themeBtn=document.getElementById('theme-toggle'); if(themeBtn)themeBtn.innerHTML=this.state.theme==='light'?'Светлая ☀️':'Темная 🌙'},
+            applyTheme(){ if(this.state.theme==='dark')document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark')},
+            toggleSound(){ this.state.soundEnabled=!this.state.soundEnabled; this.playSound('uiClick'); this.saveSettings(); const soundBtn=document.getElementById('sound-toggle'); if(soundBtn)soundBtn.innerHTML=this.state.soundEnabled?'Вкл 🔊':'Выкл 🔇'},
+            toggleMusic() { this.state.musicEnabled = !this.state.musicEnabled; this.playSound('uiClick'); this.updateMusicState(); this.saveSettings(); const musicBtn = document.getElementById('music-toggle'); if (musicBtn) { musicBtn.innerHTML = this.state.musicEnabled ? 'Вкл 🎵' : 'Выкл 🔇'; } },
+            updateMusicState(forceState, isFromBackground = false) { const music = document.getElementById('bg-music'); let shouldPlay; if (typeof forceState === 'boolean') { shouldPlay = forceState; } else { shouldPlay = this.state.musicEnabled; } if (shouldPlay && (Tone.context.state === 'running' || isFromBackground)) { music.play().catch(e => console.log("Music play prevented by browser.")); } else { music.pause(); } },
+            async saveSettings() { if (!this.vk.userId) return; const storageKey = `minesweeper_data_${this.vk.userId}`; const dataToSave = JSON.stringify({ theme: this.state.theme, soundEnabled: this.state.soundEnabled, musicEnabled: this.state.musicEnabled, stats: this.state.stats, gamesPlayedSinceAd: this.state.gamesPlayedSinceAd, }); try { await vkBridge.send('VKWebAppStorageSet', { key: storageKey, value: dataToSave }); } catch (error) { localStorage.setItem(storageKey, dataToSave); } },
+            async loadSettings() { if (!this.vk.userId) return; const storageKey = `minesweeper_data_${this.vk.userId}`; let loadedData = null; try { const response = await vkBridge.send('VKWebAppStorageGet', { keys: [storageKey] }); if (response.keys[0]?.value) loadedData = JSON.parse(response.keys[0].value); } catch (error) { const localData = localStorage.getItem(storageKey); if (localData) loadedData = JSON.parse(localData); } if (loadedData) { this.state.theme = loadedData.theme || 'light'; this.state.soundEnabled = loadedData.soundEnabled !== false; this.state.musicEnabled = loadedData.musicEnabled !== false; this.state.gamesPlayedSinceAd = loadedData.gamesPlayedSinceAd || 0; if(loadedData.stats) { for (const key in this.state.stats) { if(loadedData.stats[key]) { this.state.stats[key].wins = loadedData.stats[key].wins || 0; this.state.stats[key].bestTime = loadedData.stats[key].bestTime === null ? Infinity : loadedData.stats[key].bestTime || Infinity; } } } } },
+            updateStats() { const key = this.state.difficulty.key; this.state.stats[key].wins++; if (this.state.time < this.state.stats[key].bestTime) { this.state.stats[key].bestTime = this.state.time; } this.saveSettings(); },
+            formatTime(totalSeconds) { if (totalSeconds === Infinity || totalSeconds === null) return '--:--'; const minutes = Math.floor(totalSeconds / 60); const seconds = totalSeconds % 60; return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; }
         };
 
-        // Unchanged functions (stubs for brevity)
-        App.createGameScreen = App.createGameScreen.toString().includes('...') ? function() { const screen = document.createElement('div'); screen.className = 'game-screen'; screen.innerHTML = `<div class="flex justify-between items-center p-4 rounded-xl" style="background-color: var(--secondary, var(--secondary-light));"><div class="text-center"><div class="text-sm font-bold opacity-70">ВРЕМЯ</div><div id="timer" class="text-3xl font-bold">00:00</div></div><button id="pause-btn" class="btn-icon w-14 h-14"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" /></svg></button><div class="text-center"><div class="text-sm font-bold opacity-70">МИНЫ</div><div id="mines-left" class="text-3xl font-bold">${this.state.minesLeft}</div></div></div><div id="game-board-container" class="flex-grow flex items-center justify-center min-h-0"><div id="game-board"></div></div>`; screen.querySelector('#pause-btn').onclick = () => { this.playSound('uiClick'); this.showPauseModal(); }; return screen; } : App.createGameScreen;
-        App.startGame = App.startGame.toString().includes('...') ? function(difficultyKey) { this.state.difficulty = { key: difficultyKey, ...this.difficulties[difficultyKey] }; this.state.minesLeft = this.state.difficulty.mines; this.state.time = 0; this.state.gameStarted = false; this.state.gameOver = false; this.state.currentScreen = 'game'; this.updateMusicState(); this.render(); } : App.startGame;
-        App.createBoard = App.createBoard.toString().includes('...') ? function(firstClickRow, firstClickCol) { const { rows, cols, mines } = this.state.difficulty; let board = Array(rows).fill(null).map(() => Array(cols).fill(null).map(() => ({ mine: false, revealed: false, flagged: false, adjacentMines: 0 }))); let minesPlaced = 0; while (minesPlaced < mines) { const r = Math.floor(Math.random() * rows); const c = Math.floor(Math.random() * cols); const isFirstClickArea = Math.abs(r - firstClickRow) <= 1 && Math.abs(c - firstClickCol) <= 1; if (!board[r][c].mine && !isFirstClickArea) { board[r][c].mine = true; minesPlaced++; } } for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { if (board[r][c].mine) continue; let count = 0; for (let dr = -1; dr <= 1; dr++) { for (let dc = -1; dc <= 1; dc++) { if (dr === 0 && dc === 0) continue; const nr = r + dr; const nc = c + dc; if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].mine) { count++; } } } board[r][c].adjacentMines = count; } } this.state.board = board; } : App.createBoard;
-        App.renderBoard = App.renderBoard.toString().includes('...') ? function() { const { rows, cols } = this.state.difficulty; const boardElement = document.getElementById('game-board'); const containerElement = document.getElementById('game-board-container'); boardElement.innerHTML = ''; const containerWidth = containerElement.clientWidth; const containerHeight = containerElement.clientHeight; let cellSize = Math.floor((containerWidth - 16) / cols) - 4; const requiredBoardHeight = (cellSize + 4) * rows + 12; if (requiredBoardHeight > containerHeight) { cellSize = Math.floor((containerHeight - 16) / rows) - 4; } boardElement.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`; boardElement.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`; boardElement.style.gap = '4px'; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const cell = document.createElement('div'); cell.className = 'cell'; cell.dataset.row = r; cell.dataset.col = c; cell.style.fontSize = `${cellSize * 0.5}px`; cell.addEventListener('mousedown', (e) => { if (e.button !== 0) return; this.handlePressStart(r, c); }); cell.addEventListener('mouseup', () => this.handlePressEnd(r, c)); cell.addEventListener('mouseleave', () => this.cancelPress()); cell.addEventListener('touchstart', (e) => { e.preventDefault(); this.handlePressStart(r, c); }, { passive: false }); cell.addEventListener('touchend', (e) => { e.preventDefault(); this.handlePressEnd(r, c); }); boardElement.appendChild(cell); } } } : App.renderBoard;
-        App.updateBoard = App.updateBoard.toString().includes('...') ? function() { const { rows, cols } = this.state.difficulty; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const cellElement = document.querySelector(`.cell[data-row='${r}'][data-col='${c}']`); const cellData = this.state.board[r][c]; cellElement.innerHTML = ''; cellElement.className = 'cell'; if (cellData.flagged) { cellElement.innerHTML = '🚩'; } if (cellData.revealed) { cellElement.classList.add('revealed'); if (cellData.mine) { cellElement.innerHTML = '💣'; cellElement.classList.add('mine'); } else if (cellData.adjacentMines > 0) { cellElement.textContent = cellData.adjacentMines; cellElement.classList.add(`c-${cellData.adjacentMines}`); } } } } document.getElementById('mines-left').textContent = this.state.minesLeft; } : App.updateBoard;
-        App.handlePressStart = App.handlePressStart.toString().includes('...') ? function(r,c){ if(this.state.gameOver)return; if(this.state.gameStarted&&this.state.board[r][c].revealed)return; this.state.isLongPress=!1; this.state.pressTimer=setTimeout(()=>{this.state.isLongPress=!0; this.toggleFlag(r,c)},250)} : App.handlePressStart;
-        App.handlePressEnd = App.handlePressEnd.toString().includes('...') ? function(r,c){ clearTimeout(this.state.pressTimer); if(!this.state.isLongPress)this.revealCell(r,c)} : App.handlePressEnd;
-        App.cancelPress = App.cancelPress.toString().includes('...') ? function(){ clearTimeout(this.state.pressTimer)} : App.cancelPress;
-        App.toggleFlag = App.toggleFlag.toString().includes('...') ? function(r,c){ if(this.state.gameOver||this.state.board[r][c].revealed)return; const cell=this.state.board[r][c]; if(!cell.flagged&&this.state.minesLeft===0)return; cell.flagged=!cell.flagged; this.state.minesLeft+=cell.flagged?-1:1; this.playSound('flag'); this.updateBoard()} : App.toggleFlag;
-        App.revealCell = App.revealCell.toString().includes('...') ? function(r,c){ if(this.state.gameOver)return; if(!this.state.gameStarted){ this.createBoard(r,c); this.state.gameStarted=!0; this.startTimer()} const cell=this.state.board[r][c]; if(cell.revealed||cell.flagged)return; cell.revealed=!0; this.playSound('click'); if(cell.mine)this.endGame(!1); else if(cell.adjacentMines===0)this.revealNeighbors(r,c); this.updateBoard(); this.checkWinCondition()} : App.revealCell;
-        App.revealNeighbors = App.revealNeighbors.toString().includes('...') ? function(r,c){ for(let dr=-1; dr<=1; dr++)for(let dc=-1; dc<=1; dc++){ if(dr===0&&dc===0)continue; const nr=r+dr; const nc=c+dc; if(nr>=0&&nr<this.state.difficulty.rows&&nc>=0&&nc<this.state.difficulty.cols&&!this.state.board[nr][nc].revealed&&!this.state.board[nr][nc].flagged)this.revealCell(nr,nc)}} : App.revealNeighbors;
-        App.startTimer = App.startTimer.toString().includes('...') ? function(){ this.stopTimer(); this.state.timerInterval=setInterval(()=>{this.state.time++; document.getElementById('timer').textContent=this.formatTime(this.state.time)},1e3)} : App.startTimer;
-        App.stopTimer = App.stopTimer.toString().includes('...') ? function(){ clearInterval(this.state.timerInterval)} : App.stopTimer;
-        App.checkWinCondition = App.checkWinCondition.toString().includes('...') ? function(){ const{rows,cols,mines}=this.state.difficulty; let revealedCount=0; for(let r=0; r<rows; r++)for(let c=0; c<cols; c++)if(this.state.board[r][c].revealed)revealedCount++; if(revealedCount===rows*cols-mines)this.endGame(!0)} : App.checkWinCondition;
-        App.showModal = App.showModal.toString().includes('...') ? function(content) { const modal = document.createElement('div'); modal.className = 'modal-overlay'; modal.innerHTML = `<div class="modal-content">${content}</div>`; modal.onclick = (e) => { if (e.target === modal) { this.closeModal(); } }; document.body.appendChild(modal); } : App.showModal;
-        App.closeModal = App.closeModal.toString().includes('...') ? function() { this.playSound('uiClick'); const modal = document.querySelector('.modal-overlay'); if (modal) { modal.style.animation = 'fadeOut 0.3s ease'; modal.firstChild.style.animation = 'slideOutDown 0.4s ease-out'; setTimeout(() => modal.remove(), 300); } } : App.closeModal;
-        App.showRulesModal = App.showRulesModal.toString().includes('...') ? function() { const content = `<h2 class="text-3xl font-bold text-center mb-6">Правила Игры</h2><div class="space-y-4 text-left"><div class="flex items-center gap-4"><div class="cell revealed c-1 animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">1</div><p class="flex-1"><span class="font-bold">Нажмите</span> на ячейку, чтобы открыть ее. Цифра показывает, сколько мин находится вокруг.</p></div><div class="flex items-center gap-4"><div class="cell animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">🚩</div><p class="flex-1"><span class="font-bold">Удерживайте</span> ячейку, чтобы поставить или убрать флажок. Флажками отмечаются предполагаемые мины.</p></div><div class="flex items-center gap-4"><div class="cell revealed mine animated-svg-rule" style="width: 50px; height: 50px; font-size: 25px;">💣</div><p class="flex-1">Цель: открыть все ячейки, не содержащие мин. Если вы откроете мину - игра окончена.</p></div></div><button id="close-modal-btn" class="btn btn-primary mt-8 w-full">Понятно!</button>`; this.showModal(content); document.getElementById('close-modal-btn').onclick = () => this.closeModal(); } : App.showRulesModal;
-        App.showPauseModal = App.showPauseModal.toString().includes('...') ? function() { this.stopTimer(); const content = `<h2 class="text-3xl font-bold text-center mb-6">Пауза</h2><div class="flex flex-col gap-4"><button id="resume-btn" class="btn btn-primary">Продолжить</button><button id="menu-btn" class="btn">В меню</button></div>`; this.showModal(content); document.getElementById('resume-btn').onclick = () => { this.closeModal(); this.startTimer(); }; document.getElementById('menu-btn').onclick = () => { this.closeModal(); this.state.currentScreen = 'menu'; this.render(); }; } : App.showPauseModal;
-        App.showWinLoseModal = App.showWinLoseModal.toString().includes('...') ? function(isWin) { const title = isWin ? 'Победа! 🎉' : 'Поражение 💣'; const message = isWin ? `Отлично! Ваше время: ${this.formatTime(this.state.time)}.` : 'Упс! Кажется, вы наткнулись на мину.'; const content = `<div class="text-center"><h2 class="text-4xl font-extrabold mb-4">${title}</h2><p class="text-lg opacity-80 mb-8">${message}</p><div class="flex flex-col gap-4"><button id="play-again-btn" class="btn btn-primary">Играть снова</button><button id="menu-btn" class="btn">В меню</button></div></div>`; this.showModal(content); document.getElementById('play-again-btn').onclick = () => { this.closeModal(); this.startGame(this.state.difficulty.key); }; document.getElementById('menu-btn').onclick = () => { this.closeModal(); this.state.currentScreen = 'menu'; this.render(); }; } : App.showWinLoseModal;
-        App.toggleTheme = App.toggleTheme.toString().includes('...') ? function(){ this.playSound('uiClick'); this.state.theme=this.state.theme==='light'?'dark':'light'; this.applyTheme(); this.saveSettings(); const themeBtn=document.getElementById('theme-toggle'); if(themeBtn)themeBtn.innerHTML=this.state.theme==='light'?'Светлая ☀️':'Темная 🌙'} : App.toggleTheme;
-        App.applyTheme = App.applyTheme.toString().includes('...') ? function(){ if(this.state.theme==='dark')document.documentElement.classList.add('dark'); else document.documentElement.classList.remove('dark')} : App.applyTheme;
-        App.toggleSound = App.toggleSound.toString().includes('...') ? function(){ this.state.soundEnabled=!this.state.soundEnabled; this.playSound('uiClick'); this.saveSettings(); const soundBtn=document.getElementById('sound-toggle'); if(soundBtn)soundBtn.innerHTML=this.state.soundEnabled?'Вкл 🔊':'Выкл 🔇'} : App.toggleSound;
-
-        // Start the application
         document.addEventListener('DOMContentLoaded', () => App.init());
         window.addEventListener('resize', () => {
             if (App.state.currentScreen === 'game') {
@@ -603,4 +457,5 @@
     </script>
 </body>
 </html>
+
 
